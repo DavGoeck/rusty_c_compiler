@@ -1,24 +1,28 @@
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use regex::Regex;
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
-    eof,
-    equal,
-    greater,
-    identifier,
-    int,
-    l_brace,
-    l_paren,
-    minusminus,
-    numeric_constant,
-    plusequal,
-    r_brace,
-    return_key,
-    r_paren,
-    semi,
-    while_key
+    Eof,
+    Equal,
+    Equality,
+    Greater,
+    Identifier(String),
+    Int,
+    LBrace,
+    LParen,
+    MinusMinus,
+    MinusEqual,
+    NumericConstant(usize),
+    PlusPlus,
+    PlusEqual,
+    RBrace,
+    Return,
+    RParen,
+    Semi,
+    While,
 }
 
 pub fn read_file(path : &Path) -> String {
@@ -39,40 +43,84 @@ pub fn read_file(path : &Path) -> String {
     return content;
 } 
 
-pub fn tokenize(path : &Path) -> Vec<Token> {
-    let content: String = read_file(path);
-    let separators = "()[]{}";
+pub struct Lexer {
+    buf: String,
+    pos: usize,
+    done: bool,
+    eat_whitespace_re: Regex,
+    identifier_re: Regex,
+    numeric_re: Regex,
+}
 
-    let mut token: Vec<&str> = vec![];
-    let mut last_index: usize = 0;
+impl Iterator for Lexer {
+    type Item = Token;
+    fn next(&mut self) -> Option<Token> {
+        if let Some(m) = self.eat_whitespace_re.find(&self.buf[self.pos..]) {
+            self.pos += m.end();
+        }
 
-    let mut i = 0;
-    while i < content.len() {
-        let c: char = content.chars().nth(i).unwrap();
-        if c.is_whitespace() {
-            let current_token = &content[last_index..i];
-            token.push(current_token);
+        if let Some(c) = self.buf.chars().nth(self.pos) {
 
-            let mut next_char = c;
-            while next_char.is_whitespace() {
-                i = i+1;
-                next_char = content.chars().nth(i).unwrap();
+            if let Some(m) = self.identifier_re.find(&self.buf[self.pos..]) {
+                self.pos += m.end();
+                return match m.as_str() {
+                    "int" => Some(Token::Int),
+                    "while" => Some(Token::While),
+                    "return" => Some(Token::Return),
+                    _ => Some(Token::Identifier(String::from(m.as_str()))),
+                }
             }
 
-            last_index = i;
-        }
-        else if separators.contains(c) {
-            let current_token = &content[last_index..i];
-            token.push(current_token);
-            i = i+1;
+            if let Some(m) = self.numeric_re.find(&self.buf[self.pos..]) {
+                self.pos += m.end();
+                return Some(Token::NumericConstant(m.as_str().parse::<usize>().unwrap()));
+            }
 
-            let separator = &content[i..i];
-            token.push(separator);
-            i = i+1;
-        } else {
-            i = i+1;
+            if let Some(_) = self.buf.chars().nth(self.pos+1) {
+                let token = match &self.buf[self.pos..self.pos+2] {
+                    "--" => Some(Token::MinusMinus),
+                    "-=" => Some(Token::MinusEqual),
+                    "++" => Some(Token::PlusPlus),
+                    "+=" => Some(Token::PlusEqual),
+                    "==" => Some(Token::Equality),
+                    _ => None,
+                };
+
+                if token.is_some() {
+                    self.pos += 2;
+                    return token;
+                }
+            }
+
+            let token = match c {
+                '=' => Some(Token::Equal),
+                '>' => Some(Token::Greater),
+                ';' => Some(Token::Semi),
+                '(' => Some(Token::LParen),
+                ')' => Some(Token::RParen),
+                '{' => Some(Token::LBrace),
+                '}' => Some(Token::RBrace),
+                _ => None,
+            };
+            self.pos += 1;
+            return token;
+        } else if !self.done {
+            self.done = true;
+            return Some(Token::Eof);
         }
+        return None;
     }
+}
 
-    return vec![];
+pub fn tokenizer(path: &Path) -> Lexer {
+    let content = read_file(path);
+    let lex = Lexer {
+        buf: content,
+        pos: 0,
+        done: false,
+        eat_whitespace_re: Regex::new(r"^\s*").unwrap(),
+        identifier_re: Regex::new(r"^[A-z]\w*").unwrap(),
+        numeric_re: Regex::new(r"^[1-9]\d*").unwrap(),
+    };
+    return lex;
 }

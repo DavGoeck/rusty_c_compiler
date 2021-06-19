@@ -4,12 +4,12 @@ use std::path::Path;
 use regex::Regex;
 
 #[derive(Debug, PartialEq)]
-pub enum Token {
+pub enum Token<'a> {
     Eof,
     Equal,
     Equality,
     Greater,
-    Identifier(String),
+    Identifier(&'a str),
     Int,
     LBrace,
     LParen,
@@ -43,8 +43,8 @@ pub fn read_file(path : &Path) -> String {
     return content;
 } 
 
-pub struct Lexer {
-    buf: String,
+pub struct Lexer<'a> {
+    buf: &'a str,
     pos: usize,
     done: bool,
     eat_whitespace_re: Regex,
@@ -52,9 +52,9 @@ pub struct Lexer {
     numeric_re: Regex,
 }
 
-impl Iterator for Lexer {
-    type Item = Token;
-    fn next(&mut self) -> Option<Token> {
+impl<'a> Iterator for Lexer<'a> {
+    type Item = Token<'a>;
+    fn next(&mut self) -> Option<Token<'a>> {
         if let Some(m) = self.eat_whitespace_re.find(&self.buf[self.pos..]) {
             self.pos += m.end();
         }
@@ -67,7 +67,7 @@ impl Iterator for Lexer {
                     "int" => Some(Token::Int),
                     "while" => Some(Token::While),
                     "return" => Some(Token::Return),
-                    _ => Some(Token::Identifier(String::from(m.as_str()))),
+                    _ => Some(Token::Identifier(m.as_str())),
                 }
             }
 
@@ -112,10 +112,9 @@ impl Iterator for Lexer {
     }
 }
 
-pub fn tokenizer(path: &Path) -> Lexer {
-    let content = read_file(path);
+pub fn tokenizer(code: &str) -> Lexer {
     let lex = Lexer {
-        buf: content,
+        buf: &code,
         pos: 0,
         done: false,
         eat_whitespace_re: Regex::new(r"^\s*").unwrap(),

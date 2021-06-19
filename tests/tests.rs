@@ -22,7 +22,7 @@ mod tests {
                 "eof" => Token::Eof,
                 "equal" => Token::Equal,
                 "greater" => Token::Greater,
-                "identifier" => Token::Identifier(String::from(&name[1..name.len() - 1])),
+                "identifier" => Token::Identifier(&name[1..name.len() - 1]),
                 "int" => Token::Int,
                 "l_brace" => Token::LBrace,
                 "l_paren" => Token::LParen,
@@ -40,13 +40,16 @@ mod tests {
         }
         
         let path_to_input = parent_directory.join("data").join("example.c");
-        let found: Lexer = tokenizer(path_to_input.as_path());
-        let token_vec: Vec<Token> = tokenizer(path_to_input.as_path()).collect();
-
-        assert_eq!(token_vec.len(), expected_array.len());
-        let zippedIter = expected_array.into_iter().zip(found.into_iter());
-        for (expected,actual) in zippedIter {
+        let content = read_file(path_to_input.as_path());
+        let found: Lexer = tokenizer(&content);            
+        let expected_count = expected_array.len();
+        let mut actual_count = 0;
+        let zipped = expected_array.into_iter().zip(found.into_iter());
+        for (expected, actual) in zipped {
             assert_eq!(expected,actual);
+            actual_count += 1;
         }
+
+        assert_eq!(expected_count, actual_count);
     }
 }
